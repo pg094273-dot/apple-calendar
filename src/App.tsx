@@ -183,48 +183,40 @@ export default function App() {
       const isIOS =
         /iphone|ipad|ipod/i.test(navigator.userAgent) ||
         (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-      const dataUri = `data:text/calendar;charset=utf-8,${encodeURIComponent(icsContent)}`;
 
-      // En Safari de iOS (no standalone), navegar al data:text/calendar SIN atributo download
-      // abre directamente la ficha nativa de Apple Calendar en lugar de descargar el archivo.
-      if (isIOS && !isStandalone) {
-        window.location.href = dataUri;
-        showToast('success', 'Abriendo evento en Apple Calendar...');
-        return;
-      }
-
-      // En modo webapp instalada en iOS (Pantalla de inicio), WKWebView bloquea data: en la misma vista;
-      // Web Share envía el evento directamente a la app Calendario sin descargarlo en Archivos.
-      if (isIOS && isStandalone) {
-        if (typeof navigator.share === 'function') {
-          const file = new File([icsContent], filename, { type: 'text/calendar' });
-          if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
-            try {
-              await navigator.share({
-                files: [file],
-                title: form.title.trim(),
-              });
+      if (isIOS && isStandalone && typeof navigator.share === 'function') {
+        const file = new File([icsContent], filename, { type: 'text/calendar' });
+        if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: form.title.trim(),
+            });
+            return;
+          } catch (shareErr) {
+            if (shareErr instanceof Error && shareErr.name === 'AbortError') {
               return;
-            } catch (shareErr) {
-              if (shareErr instanceof Error && shareErr.name === 'AbortError') {
-                return;
-              }
             }
           }
         }
+      }
 
-        const link = document.createElement('a');
-        link.href = dataUri;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+      if (isIOS && !isStandalone) {
+        const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+        const blobUrl = URL.createObjectURL(blob);
+        window.location.href = blobUrl;
+        window.setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
+        showToast('success', 'Evento generado para Apple Calendar.');
         return;
       }
 
       triggerBlobDownload(icsContent, filename);
-      showToast('success', `Archivo ${filename} listo. Ábrelo para añadirlo a tu calendario.`);
+      showToast(
+        'success',
+        isIOS
+          ? 'Toca el archivo .ics para añadirlo a Apple Calendar.'
+          : `Archivo ${filename} listo. Ábrelo para añadirlo a tu calendario.`
+      );
     } catch (err) {
       showToast('error', err instanceof Error ? err.message : 'No se pudo crear el evento.');
     }
