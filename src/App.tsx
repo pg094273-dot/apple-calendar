@@ -95,7 +95,7 @@ export default function App() {
     }
   }, [form]);
 
-  const updateField = <K extends keyof CalendarEventForm>(
+  const updateField = <K extends keyof CalendarEventForm,>(
     key: K,
     value: CalendarEventForm[K]
   ) => {
