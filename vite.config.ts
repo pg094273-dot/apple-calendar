@@ -5,7 +5,10 @@ import path from 'path';
 import {defineConfig} from 'vite';
 import {VitePWA} from 'vite-plugin-pwa';
 
-const rawBase = process.env.VITE_BASE_PATH || '/';
+const repoName = process.env.GITHUB_REPOSITORY?.split('/')[1];
+const rawBase =
+  process.env.VITE_BASE_PATH ||
+  (process.env.GITHUB_ACTIONS && repoName ? `/${repoName}/` : '/');
 const base = rawBase.endsWith('/') ? rawBase : `${rawBase}/`;
 
 export default defineConfig(() => {

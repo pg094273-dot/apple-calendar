@@ -180,37 +180,46 @@ export default function App() {
       const isStandalone =
         window.matchMedia('(display-mode: standalone)').matches ||
         (window.navigator as unknown as { standalone?: boolean }).standalone === true;
-      const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      const isIOS =
+        /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      const dataUri = `data:text/calendar;charset=utf-8,${encodeURIComponent(icsContent)}`;
 
-      // In iOS Home Screen standalone mode, native Web Share with a .ics File lets the user pick "Calendario" directly.
-      if (isStandalone && isIOS && typeof navigator.share === 'function') {
-        const file = new File([icsContent], filename, { type: 'text/calendar' });
-        if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
-          try {
-            await navigator.share({
-              files: [file],
-              title: form.title.trim(),
-            });
-            showToast('success', 'Elige «Calendario» en la hoja para guardar el evento.');
-            return;
-          } catch (shareErr) {
-            if (shareErr instanceof Error && shareErr.name === 'AbortError') {
+      // En Safari de iOS (no standalone), navegar al data:text/calendar SIN atributo download
+      // abre directamente la ficha nativa de Apple Calendar en lugar de descargar el archivo.
+      if (isIOS && !isStandalone) {
+        window.location.href = dataUri;
+        showToast('success', 'Abriendo evento en Apple Calendar...');
+        return;
+      }
+
+      // En modo webapp instalada en iOS (Pantalla de inicio), WKWebView bloquea data: en la misma vista;
+      // Web Share envía el evento directamente a la app Calendario sin descargarlo en Archivos.
+      if (isIOS && isStandalone) {
+        if (typeof navigator.share === 'function') {
+          const file = new File([icsContent], filename, { type: 'text/calendar' });
+          if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
+            try {
+              await navigator.share({
+                files: [file],
+                title: form.title.trim(),
+              });
               return;
+            } catch (shareErr) {
+              if (shareErr instanceof Error && shareErr.name === 'AbortError') {
+                return;
+              }
             }
           }
         }
-      }
 
-      // In iOS Safari or desktop browsers, triggering a text/calendar data URI or download opens Calendar / saves the .ics
-      if (isIOS && !isStandalone) {
-        const dataUri = `data:text/calendar;charset=utf-8,${encodeURIComponent(icsContent)}`;
         const link = document.createElement('a');
         link.href = dataUri;
-        link.download = filename;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        showToast('success', 'Abriendo vista previa para Apple Calendar.');
         return;
       }
 
@@ -672,9 +681,8 @@ export default function App() {
 
             {/* Compatibility Notice */}
             <div className="mt-4 rounded-2xl border border-black/[0.06] bg-white p-4 text-xs sm:text-sm leading-relaxed text-[#6E6E73]">
-              <strong className="font-semibold text-[#1D1D1F]">Nota sobre iOS y macOS:</strong>{' '}
-              un navegador no puede escribir directamente en Apple Calendar sin autorización del sistema. Al pulsar «Añadir al calendario» desde el iPhone, se abrirá el archivo{' '}
-              <code className="font-mono-code text-[#1D1D1F]">.ics</code> o la hoja para compartir y enviarlo directamente a la app Calendario.
+              <strong className="font-semibold text-[#1D1D1F]">Cómo se abre en iPhone:</strong>{' '}
+              desde Safari, «Añadir al calendario» abre directamente la ficha nativa de Apple Calendar. Si usas la app desde la pantalla de inicio, iOS restringe la apertura directa desde webapps y mostrará la hoja del sistema para tocar <strong className="font-medium text-[#1D1D1F]">Calendario</strong> al instante.
             </div>
           </section>
 
